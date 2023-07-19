@@ -3,8 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <stdio.h>
-
 #ifndef MXCHIP_CLIENT_PORT
 #define MXCHIP_CLIENT_PORT 3141
 #endif
@@ -95,8 +93,6 @@ on_mxchip_alloc(uv_handle_t* handle, size_t size, uv_buf_t* buf)
 
   const size_t remaining = (client->read_size > MXCHIP_MESSAGE_SIZE) ? 0 : (MXCHIP_MESSAGE_SIZE - client->read_size);
 
-  printf("alloc %d\n", (int)remaining);
-
   buf->base = &client->read_buffer[client->read_size];
 
   buf->len = remaining;
@@ -110,9 +106,8 @@ on_mxchip_read(uv_stream_t* stream, ssize_t size, const uv_buf_t* buf)
 
   struct mxchip_client* client = (struct mxchip_client*)uv_handle_get_data((uv_handle_t*)stream);
 
-  printf("reading %d\n", (int)size);
-
   if (size < 0) {
+    printf("%s\n", uv_strerror(size));
     if (client->read_cb)
       client->read_cb(stream, client, NULL);
     return;
@@ -131,7 +126,7 @@ on_mxchip_read(uv_stream_t* stream, ssize_t size, const uv_buf_t* buf)
 
     memmove(&client->read_buffer[0], &client->read_buffer[MXCHIP_MESSAGE_SIZE], clip_size);
 
-    client->read_size -= clip_size;
+    client->read_size -= MXCHIP_MESSAGE_SIZE;
   }
 }
 
@@ -188,7 +183,7 @@ mxchip_client_connect(struct mxchip_client* client, const char* ip, mxchip_clien
 
   uv_handle_set_data((uv_handle_t*)connect, client);
 
-  result = uv_tcp_connect(connect, &client->socket, (struct sockaddr*)&address, on_mxchip_client_connect);
+  result = uv_tcp_connect(connect, &client->socket, (const struct sockaddr*)&address, on_mxchip_client_connect);
   if (result != 0) {
     free(connect);
     return result;
@@ -240,4 +235,10 @@ int
 mxchip_client_stop_read(struct mxchip_client* client)
 {
   return uv_read_stop((uv_stream_t*)&client->socket);
+}
+
+void
+mxchip_client_set_user_data(struct mxchip_client* client, void* user_data)
+{
+  client->user_data = user_data;
 }

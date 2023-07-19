@@ -11,7 +11,10 @@
 
 #include <GLFW/glfw3.h>
 
-#include <stdlib.h>
+#include <vector>
+
+#include <cstdlib>
+#include <cmath>
 
 namespace {
 
@@ -38,10 +41,22 @@ public:
     ImGui_ImplOpenGL3_Init("#version 100");
 
     ImPlot::CreateContext();
+
+    uv_loop_init(&loop_);
+
+    client_ = mxchip_client_new(&loop_);
+
+    mxchip_client_set_user_data(client_, this);
   }
 
   ~program()
   {
+    mxchip_client_close(client_, nullptr);
+
+    uv_run(&loop_, UV_RUN_DEFAULT);
+
+    uv_loop_close(&loop_);
+
     ImPlot::DestroyContext();
 
     ImGui_ImplOpenGL3_Shutdown();
@@ -82,16 +97,47 @@ public:
       ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
       glfwSwapBuffers(window_);
+
+      uv_run(&loop_, UV_RUN_NOWAIT);
     }
 
     return true;
   }
 
 protected:
-  void render_chart_widget(const char* title)
+  static void on_mxchip_read(void* self_ptr, mxchip_client*, const struct mxchip_data* data)
+  {
+    auto* self = static_cast<program*>(self_ptr);
+
+    const float av[3]{
+      data->accelerometer[0],
+      data->accelerometer[1],
+      data->accelerometer[2]
+    };
+
+    const auto vib = std::sqrt(av[0] * av[0] + av[1] * av[1] + av[2] * av[2]);
+
+    self->vibration_.emplace_back(vib);
+
+    self->time_.emplace_back(data->time);
+  }
+
+  static void on_mxchip_connect(void* self_ptr, mxchip_client*, const int status)
+  {
+    auto* self = static_cast<program*>(self_ptr);
+
+    if (status == 0)
+      mxchip_client_start_read(self->client_, on_mxchip_read);
+  }
+
+  void render_chart_widget(const char* title, const char* units, const std::vector<float>& data)
   {
     if (!ImPlot::BeginPlot(title, ImVec2(-1, -1)))
       return;
+
+    ImPlot::SetupAxes("Time", units, ImPlotAxisFlags_AutoFit);
+
+    ImPlot::PlotLine(title, time_.data(), data.data(), time_.size());
 
     ImPlot::EndPlot();
   }
@@ -113,13 +159,14 @@ protected:
     ImGui::SameLine();
 
     if (ImGui::Button("Connect")) {
+      mxchip_client_connect(client_, ip_.c_str(), on_mxchip_connect);
     }
 
     if (ImGui::BeginTabBar("##Tabs")) {
 
       if (ImGui::BeginTabItem("Accelerometer")) {
 
-        render_chart_widget("Accelerometer");
+        render_chart_widget("Accelerometer", "mg", vibration_);
 
         ImGui::EndTabItem();
       }
@@ -133,9 +180,15 @@ protected:
 private:
   GLFWwindow* window_;
 
-  std::string ip_;
+  std::string ip_{ "192.168.1.137" };
 
-  uv_loop_t loop_;
+  uv_loop_t loop_{};
+
+  mxchip_client* client_{ nullptr };
+
+  std::vector<float> vibration_;
+
+  std::vector<float> time_;
 };
 
 } // namespace

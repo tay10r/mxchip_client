@@ -22,9 +22,9 @@ on_mxchip_read(void* unused, struct mxchip_client* client, const struct mxchip_d
 
   printf("data:\n");
   printf("  accelerometer:\n");
-  printf("    x: %f\n", data->accelerometer[0]);
-  printf("    y: %f\n", data->accelerometer[1]);
-  printf("    z: %f\n", data->accelerometer[2]);
+  printf("    x: %d\n", (int)data->accelerometer[0]);
+  printf("    y: %d\n", (int)data->accelerometer[1]);
+  printf("    z: %d\n", (int)data->accelerometer[2]);
 
   counter++;
 

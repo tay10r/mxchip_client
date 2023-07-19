@@ -14,6 +14,8 @@ add_library(mxchip_client
   include/mxchip_client/client.h
   src/client.c)
 
+target_compile_definitions(mxchip_client PRIVATE c_std_99)
+
 if(CMAKE_COMPILER_IS_GNUCC AND NOT MXCHIP_CLIENT_NO_WARNINGS)
   target_compile_options(mxchip_client PRIVATE -Wall -Wextra -Werror -Wfatal-errors)
 endif()
